@@ -4,6 +4,9 @@ const fs = require('fs-extra');
 const { join, dirname, basename, extname } = require('path');
 const { tmpdir } = require('os');
 const sharp = require('sharp');
+const imagemin = require('imagemin');
+const imageminPngquant = require('imagemin-pngquant');
+const imageminMozjpeg = require('imagemin-mozjpeg');
 
 const storage = new Storage();
 
@@ -56,19 +59,28 @@ exports.optimizeImages = functions.storage
         await Promise.all(resizesPromises);
         console.log('generate 3 images per devices, done!');
 
+        await imagemin([`${workingDir}/*.{jpg,png}`], {
+            destination: workingDir,
+            plugins: [
+              imageminPngquant({quality: [0.6, 0.6]}),
+              imageminMozjpeg({quality: 60}),
+            ]
+        });
+        console.log('optimize jpg and png, done!');
+
         const files = await fs.readdir(workingDir);
         console.log(files);
 
         const uploadPromises = files.map(file => {
-        const path = join(workingDir, file);
-        return bucket.upload(path, {
-            destination: join(bucketDir, basename(file)),
-            metadata: {
-            metadata: {
-                optimized: true
-            }
-            }
-        });
+            const path = join(workingDir, file);
+            return bucket.upload(path, {
+                destination: join(bucketDir, basename(file)),
+                metadata: {
+                    metadata: {
+                        optimized: true
+                    }
+                }
+            });
         });
         await Promise.all(uploadPromises);
         console.log('upload images, done!');
